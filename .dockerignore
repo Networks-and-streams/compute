@@ -1,0 +1,11 @@
+# Compute service is not implemented yet (compute/ currently only contains
+# documentation). This file prepares the build context for when it lands.
+node_modules
+dist
+coverage
+.git
+.gitignore
+.env
+.env.*
+*.log
+.DS_Store
