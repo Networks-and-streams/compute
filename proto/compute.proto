@@ -1,0 +1,31 @@
+syntax = "proto3";
+package compute;
+
+service ComputeService {
+  rpc Execute (ComputeRequest) returns (ComputeResponse);
+}
+
+message Edge {
+  uint32 from = 1;
+  uint32 to = 2;
+  int64 weight = 3;
+}
+
+message Graph {
+  uint32 vertices = 1;
+  repeated Edge edges = 2;
+  uint32 source = 3;
+}
+
+message ComputeRequest {
+  string algorithm = 1;
+  Graph graph = 2;
+  bool include_steps = 3;
+}
+
+message ComputeResponse {
+  string status = 1;
+  string result_json = 2;
+  string steps_json = 3;
+  string error = 4;
+}
