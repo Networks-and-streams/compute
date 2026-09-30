@@ -801,3 +801,95 @@ Algorithm
 **Backend відповідає за API та бізнес-логіку.
 Compute відповідає за обчислення.
 Frontend відповідає за взаємодію з користувачем та візуалізацію.**
+
+---
+
+# 23. Локальний запуск (для контриб'юторів)
+
+## Вимоги
+
+* Rust 1.98+ (`rustc --version`)
+* `protoc` (генерація gRPC-коду з `proto/compute.proto`)
+* Docker — лише для перевірки контейнера
+
+## Структура репозиторію
+
+```text
+src/
+  main.rs                  # gRPC-сервер (COMPUTE_ADDR, default 0.0.0.0:50051)
+  lib.rs
+  graph.rs                 # GraphInput + validate()
+  error.rs                 # ComputeError: InvalidGraph / UnsupportedAlgorithm / ...
+  dispatcher.rs            # match algorithm -> модуль (реєстрація нових алгоритмів тут)
+  algorithms/mod.rs        # точка входу: pub mod <algo>;
+  algorithms/minty/mod.rs  # MintyResult / MintyStep / trait Algorithm
+  algorithms/minty/minty.rs# MintyAlgorithm (реалізація)
+  server.rs                # ComputeService::execute, proto <-> GraphInput, помилки -> status
+proto/compute.proto        # gRPC-контракт (межа з Backend)
+examples/call.rs           # приклад gRPC-клієнта для Backend-команди
+tests/minty.rs             # 10 unit/integration-тестів алгоритму
+tests/grpc.rs              # 4 тести сервера (ok / InvalidRequest / UnsupportedAlgorithm / InvalidGraph)
+```
+
+Правило модулів: `pub mod foo;` шукає `src/.../foo.rs` або `src/.../foo/mod.rs`.
+`crate::` — від кореня (`lib.rs`), `super::` — на рівень вище.
+
+## Запуск сервера
+
+```bash
+cargo run
+COMPUTE_ADDR=127.0.0.1:50051 cargo run   # інший адрес/порт
+```
+
+Очікувано: `compute listening on 0.0.0.0:50051`.
+
+## Приклад клієнта (як звертається Backend)
+
+```bash
+cargo run --example call
+```
+
+Повертає `status` (`ok` або `InvalidRequest` / `InvalidGraph` /
+`UnsupportedAlgorithm` / `AlgorithmExecutionError`), `result_json`,
+`steps_json` (`include_steps = true` — режим візуалізації, `false` — тільки результат),
+`error`.
+
+## Тести
+
+```bash
+cargo test
+```
+
+* `tests/minty.rs` — §15: простий граф, вибір найкоротшого з кількох шляхів,
+  недосяжні вершини, одна вершина, ланцюжок через проміжні вершини,
+  ребро нульової ваги, 4 класи некоректних даних, невідомий алгоритм.
+* `tests/grpc.rs` — сервер на ефемерному порту: happy path, відсутній граф,
+  невідомий алгоритм, некоректний граф.
+
+## Docker
+
+```bash
+docker build -t compute .
+docker run --rm -p 50051:50051 -e COMPUTE_ADDR=0.0.0.0:50051 compute
+# в іншому терміналі:
+cargo run --example call
+```
+
+У `docker-compose` Backend звертається як `compute:50051`, ніколи `localhost`:
+
+```yaml
+services:
+  compute:
+    build: ./compute
+    environment:
+      - COMPUTE_ADDR=0.0.0.0:50051
+    expose:
+      - "50051"
+```
+
+## Як додати новий алгоритм
+
+1. `src/algorithms/<name>/` — реалізація + `Result`/`Step`-моделі;
+2. `pub mod <name>;` у `src/algorithms/mod.rs`;
+3. гілка в `match` у `src/dispatcher.rs:12` (транспорт і сервер не чіпати);
+4. тести в `tests/` за зразком `tests/minty.rs`.
