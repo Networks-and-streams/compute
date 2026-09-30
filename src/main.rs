@@ -1,26 +1,13 @@
-fn main() {
-    let g = compute::graph::GraphInput {
-        vertices: 4,
-        edges: vec![
-            compute::graph::Edge {
-                from: 1,
-                to: 2,
-                weight: 5,
-            },
-            compute::graph::Edge {
-                from: 1,
-                to: 3,
-                weight: 8,
-            },
-            compute::graph::Edge {
-                from: 2,
-                to: 4,
-                weight: 7,
-            },
-        ],
-        source: 1,
-    };
-    let (res, steps) = compute::dispatcher::dispatch("minty", &g, true).unwrap();
-    println!("{res}");
-    println!("Steps: {steps}");
+use compute::server::{proto::compute_service_server::ComputeServiceServer, ComputeServer};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = std::env::var("COMPUTE_ADDR").unwrap_or_else(|_| "0.0.0.0:50051".into());
+    let addr = addr.parse()?;
+    println!("compute listening on {addr}");
+    tonic::transport::Server::builder()
+        .add_service(ComputeServiceServer::new(ComputeServer::default()))
+        .serve(addr)
+        .await?;
+    Ok(())
 }

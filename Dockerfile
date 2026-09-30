@@ -1,6 +1,7 @@
-FROM rust:1.78-slim AS build
+FROM rust:1.98-slim-bookworm AS build
 WORKDIR /app
-COPY Cargo.toml Cargo.lock* ./
+RUN apt-get update && apt-get install -y protobuf-compiler && rm -rf /var/lib/apt/lists/*
+COPY Cargo.toml Cargo.lock* build.rs ./
 COPY src ./src
 COPY proto ./proto
 RUN cargo build --release
