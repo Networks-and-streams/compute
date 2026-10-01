@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 pub struct MintyResult {
     pub source: u32,
     pub distances: BTreeMap<u32, Option<u64>>, // None = unreachable
-    pub paths: BTreeMap<u32, Vec<u32>>,
+    pub paths: BTreeMap<u32, Vec<Vec<u32>>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

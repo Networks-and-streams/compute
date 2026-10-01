@@ -97,3 +97,29 @@ async fn grpc_invalid_graph() {
         .into_inner();
     assert_eq!(resp.status, "InvalidGraph");
 }
+
+#[tokio::test]
+async fn grpc_multiple_shortest_paths() {
+    let mut client = ComputeServiceClient::connect(spawn_server().await).await.unwrap();
+    let resp = client
+        .execute(ComputeRequest {
+            algorithm: "minty".into(),
+            graph: Some(Graph {
+                vertices: 4,
+                edges: vec![
+                    Edge { from: 1, to: 2, weight: 5 },
+                    Edge { from: 1, to: 3, weight: 5 },
+                    Edge { from: 2, to: 4, weight: 7 },
+                    Edge { from: 3, to: 4, weight: 7 },
+                ],
+                source: 1,
+            }),
+            include_steps: false,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(resp.status, "ok");
+    assert!(resp.result_json.contains("\"4\":12"));
+    assert!(resp.result_json.contains("[[1,2,4],[1,3,4]]"));
+}
