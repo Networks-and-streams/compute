@@ -19,7 +19,10 @@ fn simple_graph() {
     assert_eq!(res.distances[&2], Some(5));
     assert_eq!(res.distances[&3], Some(8));
     assert_eq!(res.distances[&4], Some(12));
-    assert_eq!(res.paths[&4], vec![1, 2, 4]);
+    assert_eq!(res.paths[&1], vec![vec![1]]);
+    assert_eq!(res.paths[&2], vec![vec![1, 2]]);
+    assert_eq!(res.paths[&3], vec![vec![1, 3]]);
+    assert_eq!(res.paths[&4], vec![vec![1, 2, 4]]);
 }
 
 // 2. Several possible paths -> picks the shortest.
@@ -32,7 +35,7 @@ fn multiple_paths_picks_shortest() {
     };
     let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
     assert_eq!(res.distances[&2], Some(5));
-    assert_eq!(res.paths[&2], vec![1, 3, 2]);
+    assert_eq!(res.paths[&2], vec![vec![1, 3, 2]]);
 }
 
 // 3. Unreachable vertices.
@@ -58,7 +61,7 @@ fn single_vertex() {
     };
     let (res, steps) = MintyAlgorithm.execute(&g, true).unwrap();
     assert_eq!(res.distances[&1], Some(0));
-    assert_eq!(res.paths[&1], vec![1]);
+    assert_eq!(res.paths[&1], vec![vec![1]]);
     assert_eq!(steps.len(), 1);
 }
 
@@ -93,7 +96,7 @@ fn path_through_intermediates() {
     };
     let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
     assert_eq!(res.distances[&5], Some(4));
-    assert_eq!(res.paths[&5], vec![1, 2, 3, 4, 5]);
+    assert_eq!(res.paths[&5], vec![vec![1, 2, 3, 4, 5]]);
 }
 
 // 7. Boundary case: zero-weight edge.
@@ -106,6 +109,7 @@ fn zero_weight_edge() {
     };
     let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
     assert_eq!(res.distances[&2], Some(0));
+    assert_eq!(res.paths[&2], vec![vec![1, 2]]);
 }
 
 // 8. Invalid inputs.
@@ -138,4 +142,158 @@ fn dispatcher_unsupported_algorithm() {
 fn dispatcher_invalid_graph() {
     let g = GraphInput { vertices: 2, edges: vec![edge(1, 2, -3)], source: 1 };
     assert!(dispatcher::dispatch("minty", &g, false).is_err());
+}
+
+// 11. Multiple equal shortest paths (diamond topology).
+#[test]
+fn multiple_shortest_paths_diamond() {
+    let g = GraphInput {
+        vertices: 4,
+        edges: vec![
+            edge(1, 2, 5),
+            edge(1, 3, 5),
+            edge(2, 4, 7),
+            edge(3, 4, 7),
+        ],
+        source: 1,
+    };
+    let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
+    assert_eq!(res.distances[&4], Some(12));
+    assert_eq!(
+        res.paths[&4],
+        vec![vec![1, 2, 4], vec![1, 3, 4]]
+    );
+}
+
+// 12. Three alternative shortest paths to the same destination.
+#[test]
+fn multiple_shortest_paths_three_alternatives() {
+    let g = GraphInput {
+        vertices: 5,
+        edges: vec![
+            edge(1, 2, 2),
+            edge(1, 3, 2),
+            edge(1, 4, 2),
+            edge(2, 5, 3),
+            edge(3, 5, 3),
+            edge(4, 5, 3),
+        ],
+        source: 1,
+    };
+    let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
+    assert_eq!(res.distances[&5], Some(5));
+    assert_eq!(
+        res.paths[&5],
+        vec![vec![1, 2, 5], vec![1, 3, 5], vec![1, 4, 5]]
+    );
+}
+
+// 13. Multiple shortest paths of different hop counts, ignoring longer paths.
+#[test]
+fn multiple_shortest_paths_different_lengths_and_intermediates() {
+    let g = GraphInput {
+        vertices: 5,
+        edges: vec![
+            edge(1, 4, 4),        // direct path: length 4
+            edge(1, 2, 2),
+            edge(2, 4, 2),        // via 2: length 4
+            edge(1, 3, 2),
+            edge(3, 4, 2),        // via 3: length 4
+            edge(1, 5, 3),
+            edge(5, 4, 3),        // via 5: length 6 (longer, must NOT be included)
+        ],
+        source: 1,
+    };
+    let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
+    assert_eq!(res.distances[&4], Some(4));
+    assert_eq!(
+        res.paths[&4],
+        vec![vec![1, 2, 4], vec![1, 3, 4], vec![1, 4]]
+    );
+}
+
+// 14. Combinatorial multi-stage shortest paths (2 x 2 = 4 paths).
+#[test]
+fn multiple_shortest_paths_multi_stage_combinatorial() {
+    let g = GraphInput {
+        vertices: 7,
+        edges: vec![
+            edge(1, 2, 1),
+            edge(1, 3, 1),
+            edge(2, 4, 1),
+            edge(3, 4, 1),
+            edge(4, 5, 1),
+            edge(4, 6, 1),
+            edge(5, 7, 1),
+            edge(6, 7, 1),
+        ],
+        source: 1,
+    };
+    let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
+    assert_eq!(res.distances[&7], Some(4));
+    assert_eq!(
+        res.paths[&7],
+        vec![
+            vec![1, 2, 4, 5, 7],
+            vec![1, 2, 4, 6, 7],
+            vec![1, 3, 4, 5, 7],
+            vec![1, 3, 4, 6, 7],
+        ]
+    );
+}
+
+// 15. Multiple shortest paths with zero-weight edge.
+#[test]
+fn multiple_shortest_paths_with_zero_weight_edge() {
+    let g = GraphInput {
+        vertices: 3,
+        edges: vec![
+            edge(1, 2, 2),
+            edge(1, 3, 2),
+            edge(2, 3, 0),
+        ],
+        source: 1,
+    };
+    let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
+    assert_eq!(res.distances[&3], Some(2));
+    assert_eq!(
+        res.paths[&3],
+        vec![vec![1, 2, 3], vec![1, 3]]
+    );
+}
+
+// 16. Graph with zero-weight cycle terminates cleanly and produces simple shortest paths.
+#[test]
+fn zero_weight_cycle_terminates_and_finds_simple_paths() {
+    let g = GraphInput {
+        vertices: 3,
+        edges: vec![
+            edge(1, 2, 1),
+            edge(1, 3, 1),
+            edge(2, 3, 0),
+            edge(3, 2, 0),
+        ],
+        source: 1,
+    };
+    let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
+    assert_eq!(res.distances[&2], Some(1));
+    assert_eq!(res.distances[&3], Some(1));
+    assert_eq!(res.paths[&2], vec![vec![1, 2], vec![1, 3, 2]]);
+    assert_eq!(res.paths[&3], vec![vec![1, 2, 3], vec![1, 3]]);
+}
+
+// 17. Parallel edges with identical weight do not cause duplicate paths.
+#[test]
+fn parallel_edges_identical_weight() {
+    let g = GraphInput {
+        vertices: 2,
+        edges: vec![
+            edge(1, 2, 3),
+            edge(1, 2, 3),
+        ],
+        source: 1,
+    };
+    let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
+    assert_eq!(res.distances[&2], Some(3));
+    assert_eq!(res.paths[&2], vec![vec![1, 2]]);
 }
