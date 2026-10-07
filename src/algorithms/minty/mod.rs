@@ -9,6 +9,8 @@ pub struct MintyResult {
     pub source: u32,
     pub distances: BTreeMap<u32, Option<u64>>, // None = unreachable
     pub paths: BTreeMap<u32, Vec<Vec<u32>>>,
+    /// True when more tied shortest routes exist than were returned (see `MAX_ROUTES`).
+    pub truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
