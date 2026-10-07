@@ -20,6 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 source: 1,
             }),
             include_steps: true,
+            target: None,
         })
         .await?
         .into_inner();

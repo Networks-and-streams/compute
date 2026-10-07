@@ -21,6 +21,9 @@ message ComputeRequest {
   string algorithm = 1;
   Graph graph = 2;
   bool include_steps = 3;
+  // Minty only: return the shortest routes to this vertex only (1-based).
+  // Unset = routes to every vertex.
+  optional uint32 target = 4;
 }
 
 message ComputeResponse {

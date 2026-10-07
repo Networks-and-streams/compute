@@ -47,7 +47,7 @@ impl ComputeService for ComputeServer {
             }
         };
 
-        match crate::dispatcher::dispatch(&req.algorithm, &graph, req.include_steps) {
+        match crate::dispatcher::dispatch(&req.algorithm, &graph, req.include_steps, req.target) {
             Ok((result, steps)) => Ok(tonic::Response::new(ComputeResponse {
                 status: "ok".into(),
                 result_json: result.to_string(),

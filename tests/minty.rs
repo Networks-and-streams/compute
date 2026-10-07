@@ -133,7 +133,7 @@ fn invalid_inputs() {
 #[test]
 fn dispatcher_unsupported_algorithm() {
     let g = GraphInput { vertices: 1, edges: vec![], source: 1 };
-    let err = dispatcher::dispatch("unknown", &g, false).unwrap_err();
+    let err = dispatcher::dispatch("unknown", &g, false, None).unwrap_err();
     assert!(err.to_string().contains("unknown"));
 }
 
@@ -141,7 +141,7 @@ fn dispatcher_unsupported_algorithm() {
 #[test]
 fn dispatcher_invalid_graph() {
     let g = GraphInput { vertices: 2, edges: vec![edge(1, 2, -3)], source: 1 };
-    assert!(dispatcher::dispatch("minty", &g, false).is_err());
+    assert!(dispatcher::dispatch("minty", &g, false, None).is_err());
 }
 
 // 11. Multiple equal shortest paths (diamond topology).
@@ -296,4 +296,84 @@ fn parallel_edges_identical_weight() {
     let (res, _) = MintyAlgorithm.execute(&g, false).unwrap();
     assert_eq!(res.distances[&2], Some(3));
     assert_eq!(res.paths[&2], vec![vec![1, 2]]);
+}
+
+// 18. Target mode returns exactly the routes the all-vertices mode finds for
+// that vertex, and only that vertex.
+#[test]
+fn target_mode_matches_all_mode_for_every_vertex() {
+    let graphs = vec![
+        // diamond ties + unreachable vertex 5
+        GraphInput {
+            vertices: 5,
+            edges: vec![edge(1, 2, 5), edge(1, 3, 5), edge(2, 4, 7), edge(3, 4, 7)],
+            source: 1,
+        },
+        // zero-weight cycle
+        GraphInput {
+            vertices: 3,
+            edges: vec![edge(1, 2, 1), edge(1, 3, 1), edge(2, 3, 0), edge(3, 2, 0)],
+            source: 1,
+        },
+        // parallel edges, multi-stage ties, source not 1
+        GraphInput {
+            vertices: 6,
+            edges: vec![
+                edge(2, 1, 1), edge(2, 1, 1), edge(2, 3, 1), edge(1, 4, 1),
+                edge(3, 4, 1), edge(4, 5, 2), edge(4, 6, 1), edge(6, 5, 1), edge(5, 2, 0),
+            ],
+            source: 2,
+        },
+    ];
+
+    for g in &graphs {
+        let (all, _) = MintyAlgorithm.execute(g, false).unwrap();
+        for t in 1..=g.vertices {
+            let (one, _) = MintyAlgorithm.execute_for(g, false, Some(t)).unwrap();
+            assert_eq!(one.paths.len(), 1, "only the target is returned");
+            assert_eq!(one.paths[&t], all.paths[&t], "routes to {t}");
+            assert_eq!(one.distances, all.distances);
+        }
+    }
+}
+
+// 19. Target outside 1..vertices is rejected.
+#[test]
+fn target_out_of_range_is_invalid() {
+    let g = GraphInput { vertices: 2, edges: vec![edge(1, 2, 1)], source: 1 };
+    assert!(MintyAlgorithm.execute_for(&g, false, Some(0)).is_err());
+    assert!(MintyAlgorithm.execute_for(&g, false, Some(3)).is_err());
+    assert!(dispatcher::dispatch("minty", &g, false, Some(3)).is_err());
+}
+
+/// A chain of `layers` diamonds: 2^layers tied shortest routes to the end.
+fn diamond_chain(layers: u32) -> GraphInput {
+    let mut edges = Vec::new();
+    let mut v = 1;
+    for _ in 0..layers {
+        edges.extend([edge(v, v + 1, 1), edge(v, v + 2, 1), edge(v + 1, v + 3, 1), edge(v + 2, v + 3, 1)]);
+        v += 3;
+    }
+    GraphInput { vertices: v, edges, source: 1 }
+}
+
+// 20. Exponentially many tied routes are capped; every reachable vertex keeps a route.
+#[test]
+fn route_explosion_is_capped() {
+    use compute::algorithms::minty::minty::MAX_ROUTES;
+    let g = diamond_chain(16); // 65 536 routes to the last vertex
+
+    let (all, _) = MintyAlgorithm.execute(&g, false).unwrap();
+    assert!(all.truncated);
+    for v in 1..=g.vertices {
+        assert!(!all.paths[&v].is_empty(), "vertex {v} keeps a route");
+    }
+
+    let (one, _) = MintyAlgorithm.execute_for(&g, false, Some(g.vertices)).unwrap();
+    assert!(one.truncated);
+    assert_eq!(one.paths[&g.vertices].len(), MAX_ROUTES);
+
+    let (early, _) = MintyAlgorithm.execute_for(&g, false, Some(7)).unwrap();
+    assert!(!early.truncated);
+    assert_eq!(early.paths[&7].len(), 4);
 }

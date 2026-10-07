@@ -42,6 +42,7 @@ async fn grpc_ok_with_steps() {
             algorithm: "minty".into(),
             graph: Some(demo_graph()),
             include_steps: true,
+            target: None,
         })
         .await
         .unwrap()
@@ -60,6 +61,7 @@ async fn grpc_missing_graph() {
             algorithm: "minty".into(),
             graph: None,
             include_steps: false,
+            target: None,
         })
         .await
         .unwrap()
@@ -75,6 +77,7 @@ async fn grpc_unsupported_algorithm() {
             algorithm: "nope".into(),
             graph: Some(demo_graph()),
             include_steps: false,
+            target: None,
         })
         .await
         .unwrap()
@@ -91,6 +94,7 @@ async fn grpc_invalid_graph() {
             algorithm: "minty".into(),
             graph: Some(Graph { vertices: 0, edges: vec![], source: 1 }),
             include_steps: false,
+            target: None,
         })
         .await
         .unwrap()
@@ -115,6 +119,7 @@ async fn grpc_multiple_shortest_paths() {
                 source: 1,
             }),
             include_steps: false,
+            target: None,
         })
         .await
         .unwrap()
@@ -122,4 +127,30 @@ async fn grpc_multiple_shortest_paths() {
     assert_eq!(resp.status, "ok");
     assert!(resp.result_json.contains("\"4\":12"));
     assert!(resp.result_json.contains("[[1,2,4],[1,3,4]]"));
+}
+
+#[tokio::test]
+async fn grpc_target_returns_routes_to_one_vertex() {
+    let mut client = ComputeServiceClient::connect(spawn_server().await).await.unwrap();
+    let resp = client
+        .execute(ComputeRequest {
+            algorithm: "minty".into(),
+            graph: Some(Graph {
+                vertices: 4,
+                edges: vec![
+                    Edge { from: 1, to: 2, weight: 5 },
+                    Edge { from: 1, to: 3, weight: 5 },
+                    Edge { from: 2, to: 4, weight: 7 },
+                    Edge { from: 3, to: 4, weight: 7 },
+                ],
+                source: 1,
+            }),
+            include_steps: false,
+            target: Some(4),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(resp.status, "ok");
+    assert!(resp.result_json.contains("\"paths\":{\"4\":[[1,2,4],[1,3,4]]}"));
 }
